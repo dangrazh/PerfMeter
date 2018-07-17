@@ -11,11 +11,14 @@ Option Explicit
  
 '# <author> Joshua Honig posted on http://bytecomb.com/accurate-performance-timers-in-vba/
  
-Private Declare Function QueryPerformanceCounter Lib "kernel32" ( _
-    lpPerformanceCount As UINT64) As Long
-Private Declare Function QueryPerformanceFrequency Lib "kernel32" ( _
-    lpFrequency As UINT64) As Long
- 
+#If Win64 Then
+    Private Declare PtrSafe Function QueryPerformanceCounter Lib "kernel32" (lpPerformanceCount As UINT64) As Long
+    Private Declare PtrSafe Function QueryPerformanceFrequency Lib "kernel32" (lpFrequency As UINT64) As Long
+#Else
+    Private Declare Function QueryPerformanceCounter Lib "kernel32" (lpPerformanceCount As UINT64) As Long
+    Private Declare Function QueryPerformanceFrequency Lib "kernel32" (lpFrequency As UINT64) As Long
+#End If
+
 Private pFrequency As Double
 Private pStartTS As UINT64
 Private pEndTS As UINT64
