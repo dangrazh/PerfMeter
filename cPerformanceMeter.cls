@@ -55,7 +55,7 @@ Private m_Storage               As cDataTable           'The table holding the r
 Private m_Timer                 As cStopWatchHD         'The stop watch itself
 Private m_Runtime               As Double               'The runtime of a dedecated run
 Private m_RunID                 As Long                 'The RunID of a dedicated run
-Private m_SingleRun(1 To 3)     As Variant          'Array holding the result of a single run
+Private m_SingleRun(1 To 3)     As Variant              'Array holding the result of a single run
 
 
 
@@ -97,7 +97,8 @@ Public Property Get Version() As String
 ' Version string of the current class.
 ' Contains a list of (historical) changes to the class within the comments of the procedure.
 ' ************************************************
-   Version = "Version 1.0 (2017)"  'Initial release
+   'Version = "Version 1.0 (2017)"  'Initial release
+   Version = "Version 1.1 (2018-08)"  'Redesigned PrintReport to prevent performance issue with string concatination in combination with high numbers of records.
 
 End Property
 
@@ -182,6 +183,7 @@ Public Sub PrintReport(Optional OutputTo As OutputChannel = ImmedateWindowOut, O
     Dim tSummary As cDataTable
     Dim rSummary(1 To 5) As Variant
     Dim lptrToData As Long
+    Dim iFH As Integer
     
     'Dim stRunDescr As String
     Dim dblMin As Double: dblMin = 0
@@ -200,6 +202,18 @@ Public Sub PrintReport(Optional OutputTo As OutputChannel = ImmedateWindowOut, O
     
     stHeaderOut = stHeaderOut & vbCrLf
 
+
+    'Check for detailed report with output channel other than file
+    If IncludeDetails = True And OutputTo <> FileOut Then
+        MsgBox "Detailed output only supported when writing to file. Summary report will be produced!", vbInformation
+    End If
+
+    'Create file handle if output to file
+    If OutputTo = FileOut Then
+        iFH = FreeFile
+        Open stFileOut For Output As #iFH
+    End If
+
     'process the logged data
     m_Storage.RsMoveFirst
     Do While Not m_Storage.RsEOF
@@ -209,10 +223,17 @@ Public Sub PrintReport(Optional OutputTo As OutputChannel = ImmedateWindowOut, O
         stRunTime = Format(m_Storage.Item(3), "0.000000")
         dblRunTime = m_Storage.Item(3)
         
-        'create the detail record
-        stOutput = stOutput & stRunID & vbTab
-        stOutput = stOutput & stRunDescr & vbTab
-        stOutput = stOutput & stRunTime & vbCrLf
+        'create the detail record if required
+        If IncludeDetails = True And OutputTo = FileOut Then
+            'here goes the file output
+            stOutput = stOutput & stRunID & vbTab
+            stOutput = stOutput & stRunDescr & vbTab
+            stOutput = stOutput & stRunTime
+            
+            Print #iFH, stOutput
+            
+            stOutput = ""
+        End If
         
         'create the summary data
         If htRunDescr.Exists(stRunDescr) Then
@@ -266,13 +287,29 @@ Public Sub PrintReport(Optional OutputTo As OutputChannel = ImmedateWindowOut, O
      tSummary.RsMoveNext
     Loop
     
-    'produce the final output
-    If IncludeDetails = True Then
-        PrintReport = "*** Report Start ***" & vbCrLf & vbCrLf & "*** Summary ***" & vbCrLf & stSummaryHeaderOut & stSummaryOut & vbCrLf & vbCrLf & "*** Details ***" & vbCrLf & stHeaderOut & stOut & vbCrLf & vbCrLf & "*** Report End ***"
-     Else
-        PrintReport = "*** Report Start ***" & vbCrLf & vbCrLf & "*** Summary ***" & vbCrLf & stSummaryHeaderOut & stSummaryOut & vbCrLf & vbCrLf & "*** Report End ***"
-    End If
     
+    'produce the final output
+    stOutput = "*** Report Start ***" & vbCrLf & vbCrLf & "*** Summary ***" & vbCrLf & stSummaryHeaderOut & stSummaryOut & vbCrLf & vbCrLf & "*** Report End ***"
+    If OutputTo = FileOut Then
+        If IncludeDetails = True Then
+            'add the summary to the end of the file
+            stOutput = vbCrLf & vbCrLf & "*** Summary ***" & vbCrLf & stSummaryHeaderOut & stSummaryOut & vbCrLf & vbCrLf & "*** Report End ***"
+            Print #iFH, stOutput
+         Else
+            'simply dump the summary
+            Print #iFH, stOutput
+        End If
+        Close #iFH
+     Else
+        If OutputTo = StringOut Then
+            stOut = stOutput
+         ElseIf OutputTo = ImmedateWindowOut Then
+            Debug.Print stOutput
+         Else
+            MsgBox "Not supported output channel!", vbInformation
+        End If
+    End If
+        
 End Sub
 
 Public Function Clear()
